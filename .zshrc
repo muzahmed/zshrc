@@ -155,37 +155,40 @@ function gitlog() {
     BEGIN {
       wrap_width = 60
       print "\033[1m" pad("HASH", 10) " | " pad("WHEN", 15) " | " pad("OWNER", 25) " | MESSAGE\033[0m"
-      print "----------+-----------------+---------------------------+------------------------------------------------------------"
+      print "----------------------------------------------------------------------------------------------------------------------------"
     }
 
     {
-      hash = pad($1, 10)
-      when = pad($2, 15)
+      raw_hash = $1
+      raw_when = $2
       email = $3
       msg = $4
       for (i = 5; i <= NF; i++) {
         msg = msg " " $i
       }
 
-      owner = email
-      if (email == "muz.ahmed@gmail.com" || email == "muz@shopwithtin.com") {
-        owner = "\033[1;31mMuz\033[0m"
-        if (msg ~ /Merge (pull request|branch)/) {
-          split(msg, parts, " ")
-          for (i = 1; i < length(parts); i++) {
-            if (parts[i] == "from" || parts[i] == "branch") {
-              branch = parts[i+1]
-              sub(".*/", "", branch)
-              owner = owner " \033[0;32m| " branch "\033[0m"
-              break
-            }
+      is_muz = (email == "muz.ahmed@gmail.com" || email == "muz@shopwithtin.com")
+
+      # Yellow for Muz
+      hash = is_muz ? "\033[1;33m" pad(raw_hash, 10) "\033[0m" : pad(raw_hash, 10)
+      when = is_muz ? "\033[1;33m" pad(raw_when, 15) "\033[0m" : pad(raw_when, 15)
+
+      owner = is_muz ? "\033[1;31mMuz\033[0m" : email
+
+      if (is_muz && msg ~ /Merge (pull request|branch)/) {
+        split(msg, parts, " ")
+        for (i = 1; i < length(parts); i++) {
+          if (parts[i] == "from" || parts[i] == "branch") {
+            branch = parts[i+1]
+            sub(".*/", "", branch)
+            owner = owner " \033[0;32m| " branch "\033[0m"
+            break
           }
         }
       }
 
       owner = pad(owner, 25)
 
-      # PR link extraction
       pr_num = ""
       p = index(msg, "#")
       if (p > 0) {
@@ -202,12 +205,10 @@ function gitlog() {
         pr_links = "\033[34m" pr_base "\033[0m"
       }
 
-      # Prepend links to message
       if (pr_links != "")
         msg = pr_links "  " msg
 
-      # Wrap and print
-      cmd = "echo \"" msg "\" | fold -s -w 60"
+      cmd = "echo \"" msg "\" | fold -s -w " wrap_width
       while ((cmd | getline line) > 0) {
         lines[++n] = line
       }
@@ -220,7 +221,7 @@ function gitlog() {
           printf "%s | %s | %s | %s\n", pad("", 10), pad("", 15), pad("", 25), lines[i]
       }
 
-      print "----------+-----------------+---------------------------+------------------------------------------------------------"
+      print "----------------------------------------------------------------------------------------------------------------------------"
 
       delete lines
       n = 0
