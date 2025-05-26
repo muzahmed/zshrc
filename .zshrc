@@ -329,7 +329,7 @@ alias glme="gl | GREP_COLOR='01;33' egrep --color 'muz.*|$'"
 alias glmeonly="git log --author=\"muz\" --relative-date --decorate --oneline --abbrev-commit --pretty=format:\"%C(auto,yellow)%<(8)%h %C(auto,blue)%<(15)%ad %C(auto,reset)%<(100,trunc)%s %D\""
 
 # AWS
-selectAWS() {
+awsSelect() {
   local profiles=()
   local profile_list=$(aws configure list-profiles)
 
@@ -361,7 +361,7 @@ selectAWS() {
   fi
 }
 
-whichAWS() {
+awsCurrent() {
   if [[ -z "$AWS_PROFILE" ]]; then
     warnMsg "AWS_PROFILE is not set"
     return 1
@@ -375,6 +375,26 @@ whichAWS() {
   else
     errorMsg "AWS CLI not found"
   fi
+}
+
+awsLogin() {
+  local session_json=$(aws sts get-federation-token \
+    --name "cli-console-login" \
+    --policy '{"Version":"2012-10-17","Statement":[{"Action":"*","Effect":"Allow","Resource":"*"}]}' \
+    --duration-seconds 3600 \
+    --output json)
+
+  local session=$(echo $session_json | jq -c '{sessionId: .Credentials.AccessKeyId, sessionKey: .Credentials.SecretAccessKey, sessionToken: .Credentials.SessionToken}')
+
+  local session_encoded=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.stdin.read()))" <<< "$session")
+
+  local sign_in_token=$(curl -s "https://signin.aws.amazon.com/federation?Action=getSigninToken&Session=$session_encoded" | jq -r .SigninToken)
+
+  local console_url="https://signin.aws.amazon.com/federation?Action=login&Issuer=cli&Destination=https%3A%2F%2Fconsole.aws.amazon.com%2F&SigninToken=$sign_in_token"
+
+  echo "AWS Console Login URL (valid for 1 hour):"
+  infoMsg "$console_url"
+  open "$console_url"
 }
 
 # NPM/NVM
